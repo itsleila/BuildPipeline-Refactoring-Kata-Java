@@ -17,47 +17,77 @@ public class Pipeline {
     }
 
     public void run(Project project) {
-        boolean testsPassed;
-        boolean deploySuccessful;
+        if (!testPassed(project)) {
+            notifyFailure("Tests failed");
+            return;
+        }
 
-        if (project.hasTests()) {
-            if ("success".equals(project.runTests())) {
-                log.info("Tests passed");
-                testsPassed = true;
-            } else {
-                log.error("Tests failed");
-                testsPassed = false;
-            }
-        } else {
+        if (!deploySuccessful(project)) {
+            notifyFailure("Deployment failed");
+            return;
+        }
+
+        notifySuccess();
+    }
+
+    private boolean hasTests(Project project) {
+        return project.hasTests();
+    }
+
+    private boolean runTests(Project project) {
+        return "success".equals(project.runTests());
+    }
+
+    private boolean testPassed(Project project) {
+        boolean passed = runTests(project);
+
+        if (!hasTests(project)) {
             log.info("No tests");
-            testsPassed = true;
+            return true;
         }
 
-        if (testsPassed) {
-            if ("success".equals(project.deploy())) {
-                log.info("Deployment successful");
-                deploySuccessful = true;
-            } else {
-                log.error("Deployment failed");
-                deploySuccessful = false;
-            }
+        if (passed) {
+            log.info("Tests passed");
         } else {
-            deploySuccessful = false;
+            log.error("Tests failed");
         }
+        return passed;
+    }
 
-        if (config.sendEmailSummary()) {
-            log.info("Sending email");
-            if (testsPassed) {
-                if (deploySuccessful) {
-                    emailer.send("Deployment completed successfully");
-                } else {
-                    emailer.send("Deployment failed");
-                }
-            } else {
-                emailer.send("Tests failed");
-            }
+    private boolean runDeployment(Project project) {
+        return "success".equals(project.deploy());
+    }
+
+    private boolean deploySuccessful(Project project) {
+        boolean success = runDeployment(project);
+        if (success) {
+            log.info("Deployment successful");
         } else {
-            log.info("Email disabled");
+            log.error("Deployment failed");
+        }
+        return success;
+    }
+
+    private boolean isEmailEnabled() {
+        boolean enabled = config.sendEmailSummary();
+        if (!enabled) {
+            log.info("Email summary disabled");
+        }
+        return enabled;
+    }
+
+    private void notifyFailure(String reason) {
+        log.error(reason);
+        if (isEmailEnabled()) {
+            emailer.send(reason);
         }
     }
+
+    private void notifySuccess() {
+        if (isEmailEnabled()) {
+            emailer.send("Deployment completed successfully");
+        }
+    }
+
+    
 }
