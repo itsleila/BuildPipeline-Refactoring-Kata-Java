@@ -25,6 +25,8 @@ class PipelineTest {
         Pipeline pipeline = new Pipeline(config, emailer, log);
         Project project = Project.builder()
             .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(PASSING_TESTS)
             .setDeploysSuccessfully(true)
             .build();
         pipeline.run(project);
@@ -43,6 +45,8 @@ class PipelineTest {
         Pipeline pipeline = new Pipeline(config, emailer, log);
         Project project = Project.builder()
             .setTestStatus(FAILING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(FAILING_TESTS)
             .setDeploysSuccessfully(false)
             .build();
         pipeline.run(project);
@@ -61,28 +65,13 @@ class PipelineTest {
         Pipeline pipeline = new Pipeline(config, emailer, log);
         Project project = Project.builder()
             .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(PASSING_TESTS)
             .setDeploysSuccessfully(false)
             .build();
         pipeline.run(project);
 
         verify(emailer).sendEmail("Deployment failed");
-    }
-
-    @Test
-    @DisplayName("Deve fazer o deploy mesmo sem testes")
-    void DeploySemTestesTest(){
-        Config config = mock(Config.class);
-        when(config.sendEmailSummary()).thenReturn(true);
-        Emailer emailer = mock(Emailer.class);
-        Logger log = mock(Logger.class);
-
-        Pipeline pipeline = new Pipeline(config, emailer, log);
-        Project project = Project.builder()
-            .setTestStatus(NO_TESTS)
-            .setDeploysSuccessfully(true)
-            .build();
-        pipeline.run(project);
-        verify(log).info("Deployment successful");
     }
 
     @Test
@@ -96,10 +85,92 @@ class PipelineTest {
         Pipeline pipeline = new Pipeline(config, emailer, log);
         Project project = Project.builder()
             .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(PASSING_TESTS)
             .setDeploysSuccessfully(true)
             .build();
         pipeline.run(project);
 
         verify(emailer, never()).sendEmail(any(String.class));
     }
+
+    @Test
+    @DisplayName("Pipeline deve falhar quando não houver smoketests")
+    void PipelineFalhaSemSmoketestsTest(){
+        Config config = mock(Config.class);
+        when(config.sendEmailSummary()).thenReturn(true);
+        Emailer emailer = mock(Emailer.class);
+        Logger log = mock(Logger.class);
+
+        Pipeline pipeline = new Pipeline(config, emailer, log);
+        Project project = Project.builder()
+            .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(NO_TESTS)
+            .setDeploysSuccessfully(true)
+            .build();
+        pipeline.run(project);
+
+        verify(emailer).sendEmail("Pipeline failed - no smoke tests");
     }
+
+    @Test
+    @DisplayName("Deve informar quando smoke tests falharem")
+    void SmokeTestsFalhaTest(){
+        Config config = mock(Config.class);
+        when(config.sendEmailSummary()).thenReturn(true);
+        Emailer emailer = mock(Emailer.class);
+        Logger log = mock(Logger.class);
+
+        Pipeline pipeline = new Pipeline(config, emailer, log);
+        Project project = Project.builder()
+            .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(FAILING_TESTS)
+            .setDeploysSuccessfully(true)
+            .build();
+        pipeline.run(project);
+
+        verify(emailer).sendEmail("Smoke tests failed");
+    }
+
+    @Test
+    @DisplayName("Deve enformar error quando deploy staging falhar")
+    void DeployStagingFalhaTest(){
+        Config config = mock(Config.class);
+        when(config.sendEmailSummary()).thenReturn(true);
+        Emailer emailer = mock(Emailer.class);
+        Logger log = mock(Logger.class);
+
+        Pipeline pipeline = new Pipeline(config, emailer, log);
+        Project project = Project.builder()
+            .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(false)
+            .setSmokeTestStatus(PASSING_TESTS)
+            .build();
+        pipeline.run(project);
+
+        verify(log).error("Deployment to staging failed");
+        verify(emailer).sendEmail("Deployment to staging failed");
+    }
+
+    @Test
+    @DisplayName("Deve informar quando tudo passar, incluindo staging")
+    void TudoPassouComStagingTest(){
+        Config config = mock(Config.class);
+        when(config.sendEmailSummary()).thenReturn(true);
+        Emailer emailer = mock(Emailer.class);
+        Logger log = mock(Logger.class);
+
+        Pipeline pipeline = new Pipeline(config, emailer, log);
+        Project project = Project.builder()
+            .setTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfullyToStaging(true)
+            .setSmokeTestStatus(PASSING_TESTS)
+            .setDeploysSuccessfully(true)
+            .build();
+        pipeline.run(project);
+
+        verify(emailer).sendEmail("Deployment completed successfully");
+    }
+}

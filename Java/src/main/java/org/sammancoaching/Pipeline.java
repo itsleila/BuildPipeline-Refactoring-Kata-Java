@@ -1,10 +1,10 @@
 package org.sammancoaching;
 
-import org.sammancoaching.dependencies.Config;
-import org.sammancoaching.dependencies.Emailer;
-import org.sammancoaching.dependencies.Logger;
-import org.sammancoaching.dependencies.Project;
- 
+import org.sammancoaching.dependencies.*;
+
+import static org.sammancoaching.dependencies.TestStatus.FAILING_TESTS;
+import static org.sammancoaching.dependencies.TestStatus.NO_TESTS;
+
 public class Pipeline {
     private final Config config;
     private final Emailer emailer;
@@ -12,10 +12,15 @@ public class Pipeline {
 
     private static final String TestFailureMessage = "Tests failed";
     private static final String NoTestsMessage = "No tests";
+    private static final String SmokeTestFailureMessage = "Smoke tests failed";
+    private static final String NoSmokeTestsMessage = "Pipeline failed - no smoke tests";
     private static final String TestsPassedMessage = "Tests passed";
     private static final String DeploymentFailureMessage = "Deployment failed";
+    private static final String DeploymentFailureToStagingMessage = "Deployment to staging failed";
+    private static final String DeploymentSuccessToStagingMessage = "Deployment to staging successful";
     private static final String DeploymentSuccessMessage = "Deployment successful";
     private static final String DeploymentCompletedMessage = "Deployment completed successfully";
+    
 
     public Pipeline(Config config, Emailer emailer, Logger log) {
         this.config = config;
@@ -26,6 +31,15 @@ public class Pipeline {
     public void run(Project project) {
         if (!testPassed(project)) {
             sendEmail(TestFailureMessage);
+            return;
+        }
+
+        if(!deployToStagingSuccessful(project)) {
+            sendEmail(DeploymentFailureToStagingMessage);
+            return;
+        }
+
+        if (!runSmokeTests(project)) {
             return;
         }
 
@@ -49,10 +63,6 @@ public class Pipeline {
         return isSucessful(project.runTests());
     }
 
-    private boolean runDeployment(Project project) {
-        return isSucessful(project.deploy());
-    }
-
 
     private boolean testPassed(Project project) {
         if (!hasTests(project)) {
@@ -69,6 +79,9 @@ public class Pipeline {
         return passed;
     }
 
+    private boolean runDeployment(Project project) {
+        return isSucessful(project.deploy());
+    }
 
     private boolean deploySuccessful(Project project) {
         boolean success = runDeployment(project);
@@ -78,6 +91,26 @@ public class Pipeline {
             log.error(DeploymentFailureMessage);
         }
         return success;
+    }
+
+
+    private boolean runSmokeTests(Project project) {
+        TestStatus status = project.runSmokeTests();
+
+        if (status == NO_TESTS) {
+            log.error(NoSmokeTestsMessage);
+            sendEmail(NoSmokeTestsMessage);
+            return false;
+        }
+
+        if (status == FAILING_TESTS) {
+            log.error(SmokeTestFailureMessage);
+            sendEmail(SmokeTestFailureMessage);
+            return false;
+        }
+
+        log.info("Smoke tests passed");
+        return true;
     }
 
     private boolean isEmailEnabled() {
@@ -92,6 +125,20 @@ public class Pipeline {
         if (isEmailEnabled()) {
             emailer.sendEmail(message);
         }
+    }
+
+    private boolean runDeployToStagingSuccessful(Project project) {
+        return isSucessful(project.deploy(DeploymentEnvironment.STAGING));
+    }
+
+    private boolean deployToStagingSuccessful(Project project) {
+        boolean success = runDeployToStagingSuccessful(project);
+        if (success) {
+            log.info(DeploymentSuccessToStagingMessage);
+        } else {
+            log.error(DeploymentFailureToStagingMessage);
+        }
+        return success;
     }
     
 }
