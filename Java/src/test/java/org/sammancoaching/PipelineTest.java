@@ -29,7 +29,7 @@ class PipelineTest {
             .build();
         pipeline.run(project);
 
-        verify(emailer).send("Deployment completed successfully");
+        verify(emailer).sendEmail("Deployment completed successfully");
     }
 
     @Test
@@ -47,7 +47,7 @@ class PipelineTest {
             .build();
         pipeline.run(project);
 
-        verify(emailer).send("Tests failed");
+        verify(emailer).sendEmail("Tests failed");
     }
 
     @Test
@@ -65,14 +65,14 @@ class PipelineTest {
             .build();
         pipeline.run(project);
 
-        verify(emailer).send("Deployment failed");
+        verify(emailer).sendEmail("Deployment failed");
     }
 
     @Test
     @DisplayName("Deve fazer o deploy mesmo sem testes")
     void DeploySemTestesTest(){
         Config config = mock(Config.class);
-        when(config.sendEmailSummary()).thenReturn(false);
+        when(config.sendEmailSummary()).thenReturn(true);
         Emailer emailer = mock(Emailer.class);
         Logger log = mock(Logger.class);
 
@@ -82,7 +82,6 @@ class PipelineTest {
             .setDeploysSuccessfully(true)
             .build();
         pipeline.run(project);
-
         verify(log).info("Deployment successful");
     }
 
@@ -101,6 +100,6 @@ class PipelineTest {
             .build();
         pipeline.run(project);
 
-        verify(emailer, never()).send(any(String.class));
+        verify(emailer, never()).sendEmail(any(String.class));
     }
     }
